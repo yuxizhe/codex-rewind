@@ -134,3 +134,9 @@ ln -sfn "$(cat ~/.local/lib/codex-rewind/original-target.txt)" ~/.local/bin/code
 ```
 
 这不会删除会话备份或源码。
+
+### 会话被占用
+
+出现 `already has an active writer` 表示另一个 Codex 客户端仍持有该会话的写入权。
+请退出对应 CLI 或在桌面客户端关闭该会话，再运行 rewind。工具先加载原会话取得写入权，
+成功后才创建备份；占用冲突不会再产生额外备份。工具不会强杀进程或删除存储锁。

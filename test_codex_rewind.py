@@ -40,15 +40,22 @@ class RevertTests(unittest.TestCase):
         from unittest.mock import Mock, call
         server = Mock()
         server.call.side_effect = [dict(thread=dict(id='target', status=dict(type='idle'))), dict(thread=dict(id='target'))]
-        rewind.revert_loaded(server, 'target', 'turn')
+        rewind.load_for_revert(server, 'target')
         self.assertEqual(server.call.call_args_list, [
-            call('thread/resume', dict(threadId='target', excludeTurns=True)),
-            call('thread/revert', dict(threadId='target', beforeTurnId='turn'))])
+            call('thread/resume', dict(threadId='target', excludeTurns=True))])
 
     def test_active_target_is_not_reverted(self):
         from unittest.mock import Mock
         server = Mock()
         server.call.return_value = dict(thread=dict(id='target', status=dict(type='active')))
         with self.assertRaises(RuntimeError):
-            rewind.revert_loaded(server, 'target', 'turn')
+            rewind.load_for_revert(server, 'target')
+        self.assertEqual(server.call.call_count, 1)
+
+    def test_writer_conflict_is_actionable(self):
+        from unittest.mock import Mock
+        server = Mock()
+        server.call.side_effect = RuntimeError('thread already has an active writer')
+        with self.assertRaisesRegex(RuntimeError, '尚未创建新备份'):
+            rewind.load_for_revert(server, 'target')
         self.assertEqual(server.call.call_count, 1)

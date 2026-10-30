@@ -158,12 +158,16 @@ def choose(server, method, params, title, label):
             print('  ' + style('请输入有效序号或下方导航键。', '33'))
 
 
-def revert_loaded(server, thread_id, before_turn_id):
+def load_for_revert(server, thread_id):
     # read/list query stored history; revert requires this server to own a loaded thread.
-    loaded = server.call('thread/resume', dict(threadId=thread_id, excludeTurns=True))['thread']
+    try:
+        loaded = server.call('thread/resume', dict(threadId=thread_id, excludeTurns=True))['thread']
+    except RuntimeError as error:
+        if 'already has an active writer' in str(error):
+            raise RuntimeError('该会话仍被其他 Codex 客户端占用。请退出对应 CLI，或在桌面端关闭该会话后重试。尚未创建新备份，也未执行回退；不会强制终止其他进程。') from None
+        raise
     if loaded['id'] != thread_id or loaded.get('status', {}).get('type') == 'active':
-        raise RuntimeError('Target thread is unexpected or active; backup retained')
-    return server.call('thread/revert', dict(threadId=thread_id, beforeTurnId=before_turn_id))
+        raise RuntimeError('目标会话异常或正在执行，未创建备份，未执行回退。')
 
 
 def main():
@@ -216,6 +220,7 @@ def main():
         if not args.apply:
             print('Protocol and history compatible. Close all clients, then use --apply --stopped [--continue].')
             return
+        load_for_revert(server, args.thread_id)
         backup = server.call('thread/fork', dict(threadId=args.thread_id))['thread']['id']
         # Persist the recovery handle before issuing the destructive request.
         root = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'rewind-backups'
@@ -226,7 +231,7 @@ def main():
             output.flush()
             os.fsync(output.fileno())
         print(f'Backup: {backup}\nRecovery: codex resume {backup}\nManifest: {manifest}', flush=True)
-        result = revert_loaded(server, args.thread_id, args.before_turn_id)
+        result = server.call('thread/revert', dict(threadId=args.thread_id, beforeTurnId=args.before_turn_id))
         if result['thread']['id'] != args.thread_id:
             raise RuntimeError('Unexpected reverted thread ID')
         print(f'Rewound: {args.thread_id}', flush=True)
