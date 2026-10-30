@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import threading
 import sys
+import time
 import shutil
 import unicodedata
 from datetime import datetime
@@ -62,6 +63,57 @@ class Server:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait()
+
+
+class SharedServer(Server):
+    """Same RPC interface over the existing daemon's Unix WebSocket."""
+    def __init__(self, path):
+        from websockets.sync.client import unix_connect
+        self.connection = unix_connect(str(path), uri='ws://localhost/', open_timeout=5, max_size=32 * 1024 * 1024)
+        self.sequence = 0
+        self.messages = queue.Queue()
+        threading.Thread(target=self.read, daemon=True).start()
+
+    def read(self):
+        from websockets.exceptions import ConnectionClosed
+        try:
+            for message in self.connection:
+                self.messages.put(json.loads(message))
+        except ConnectionClosed:
+            pass
+        finally:
+            self.messages.put(None)
+
+    def send(self, message):
+        self.connection.send(json.dumps(message))
+
+    def close(self):
+        self.connection.close()
+
+
+def connect(binary):
+    path = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'app-server-control/app-server-control.sock'
+    if path.exists():
+        return SharedServer(path)
+    return Server(binary)
+
+
+def stop_target_turn(server, thread_id):
+    thread = server.call('thread/read', dict(threadId=thread_id))['thread']
+    if thread.get('status', {}).get('type') != 'active':
+        return
+    turns = server.call('thread/turns/list', dict(threadId=thread_id, limit=20, sortDirection='desc'))['data']
+    active = [turn for turn in turns if turn.get('status') == 'inProgress']
+    if len(active) != 1:
+        raise RuntimeError('无法确定当前运行轮次，请在原客户端停止后重试。')
+    server.call('turn/interrupt', dict(threadId=thread_id, turnId=active[0]['id']))
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        thread = server.call('thread/read', dict(threadId=thread_id))['thread']
+        if thread.get('status', {}).get('type') != 'active':
+            return
+        time.sleep(0.2)
+    raise RuntimeError('目标轮次尚未停止，未执行回退。')
 
 
 def clean(value, limit=160):
@@ -118,7 +170,7 @@ def choose(server, method, params, title, label):
         heading('01 / 03' if is_thread else '02 / 03', title)
         print('  ' + style('最近更新优先' if is_thread else '选中即执行 · 自动备份 · 删除所选整轮及后续历史') + '\n')
         if not is_thread:
-            print('  请先关闭目标会话的其他客户端。代码和文件不会回退。\n')
+            print('  运行中的目标轮次会自动停止。代码和文件不会回退。\n')
         for index, row in enumerate(rows, 1):
             text = label(row)
             if not is_thread:
@@ -192,7 +244,7 @@ def main():
         schema = Path(directory, 'v2', 'ThreadRevertParams.json')
         if not schema.exists() or not compatible(json.loads(schema.read_text())):
             raise RuntimeError('Incompatible Codex: expected thread/revert(threadId, beforeTurnId)')
-    server = Server(args.codex)
+    server = connect(args.codex)
     try:
         server.call('initialize', dict(clientInfo=dict(name='codex_rewind', version='1.0.0'), capabilities=dict(experimentalApi=True)))
         server.send(dict(method='initialized'))
@@ -203,8 +255,6 @@ def main():
         thread = server.call('thread/read', dict(threadId=args.thread_id))['thread']
         if thread.get('historyMode') != 'paginated':
             raise RuntimeError('Only paginated threads support thread/revert; legacy history is unchanged')
-        if thread.get('status', {}).get('type') == 'active':
-            raise RuntimeError('Thread is active')
         if interactive:
             selected = choose(server, 'thread/turns/list',
                               dict(threadId=args.thread_id, sortDirection='desc', itemsView='summary'),
@@ -220,6 +270,7 @@ def main():
         if not args.apply:
             print('Protocol and history compatible. Close all clients, then use --apply --stopped [--continue].')
             return
+        stop_target_turn(server, args.thread_id)
         load_for_revert(server, args.thread_id)
         backup = server.call('thread/fork', dict(threadId=args.thread_id))['thread']['id']
         # Persist the recovery handle before issuing the destructive request.
@@ -237,7 +288,9 @@ def main():
         print(f'Rewound: {args.thread_id}', flush=True)
     finally:
         server.close()
-    if args.resume:
+    if args.resume and isinstance(server, SharedServer):
+        print('  已回退，请在原客户端继续会话。')
+    elif args.resume:
         raise SystemExit(subprocess.call([args.codex, 'resume', args.thread_id], cwd=thread['cwd']))
 
 

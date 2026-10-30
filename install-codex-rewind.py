@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import venv
 
 
 def main():
@@ -19,6 +21,8 @@ def main():
     elif command.exists() and marker not in command.read_text():
         raise SystemExit('Unknown codex executable; installation unchanged')
     destination.mkdir(parents=True, exist_ok=True)
+    venv.EnvBuilder(with_pip=True).create(destination / 'venv')
+    subprocess.run([str(destination / 'venv/bin/python3'), '-m', 'pip', 'install', 'websockets==15.0.1'], check=True)
     shutil.copy2(Path(__file__).with_name('codex-rewind.py'), destination / 'codex-rewind.py')
     # Store the original launcher target for uninstall; no version-specific path.
     (destination / 'original-target.txt').write_text(str(real) + '\n')
@@ -27,7 +31,7 @@ def main():
 real="$HOME/.codex/packages/standalone/current/bin/codex"
 if [ "${1-}" = rewind ]; then
     shift
-    exec python3 "$HOME/.local/lib/codex-rewind/codex-rewind.py" --codex "$real" "$@"
+    exec "$HOME/.local/lib/codex-rewind/venv/bin/python3" "$HOME/.local/lib/codex-rewind/codex-rewind.py" --codex "$real" "$@"
 fi
 exec "$real" "$@"
 '''

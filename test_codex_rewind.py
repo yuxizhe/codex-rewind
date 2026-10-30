@@ -59,3 +59,20 @@ class RevertTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, '尚未创建新备份'):
             rewind.load_for_revert(server, 'target')
         self.assertEqual(server.call.call_count, 1)
+
+class InterruptTests(unittest.TestCase):
+    def test_idle_is_untouched(self):
+        from unittest.mock import Mock
+        server = Mock()
+        server.call.return_value = dict(thread=dict(status=dict(type='idle')))
+        rewind.stop_target_turn(server, 'target')
+        self.assertEqual(server.call.call_count, 1)
+
+    def test_interrupt_only_selected_turn(self):
+        from unittest.mock import Mock, call
+        server = Mock()
+        server.call.side_effect = [dict(thread=dict(status=dict(type='active'))),
+                                   dict(data=[dict(id='running', status='inProgress')]), {},
+                                   dict(thread=dict(status=dict(type='idle')))]
+        rewind.stop_target_turn(server, 'target')
+        self.assertIn(call('turn/interrupt', dict(threadId='target', turnId='running')), server.call.call_args_list)
