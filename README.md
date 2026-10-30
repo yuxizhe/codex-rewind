@@ -17,6 +17,57 @@ Built on Codex App Server's `thread/revert` API, without manually editing conver
 
 The terminal interface currently uses Chinese labels, with numbered choices, compact previews, and pagination.
 
+## Terminal walkthrough
+
+The examples below show the current Chinese terminal labels. Session titles, messages, paths, and IDs are illustrative.
+
+**1. Choose a conversation** — recent conversations appear first, with their working directories and update times.
+
+```text
+  ↶  CODEX REWIND   /   01 / 03
+  ────────────────────────────────────────────────────────────
+  选择会话
+
+  最近更新优先
+
+   1  Build a command-line tool
+      10-30 15:40 ~/projects/example · 01a18bb6
+
+   2  Improve the dashboard layout
+      10-29 18:30 ~/projects/dashboard · 01a1870a
+
+  第 1 页  ·  序号 选择   /   n 下一页   /   q 退出
+
+  › 1
+```
+
+**2. Choose a message** — the newest messages appear first. Entering a number immediately backs up the conversation and rewinds to **before that message's turn**.
+
+```text
+  ↶  CODEX REWIND   /   02 / 03
+  ────────────────────────────────────────────────────────────
+  选择回退位置
+
+  选中即执行 · 自动备份 · 删除所选整轮及后续历史
+
+  运行中的目标轮次会自动停止。代码和文件不会回退。
+
+   1  Add CSV export
+      整轮回退 · 01a18bc2
+
+   2  Add pagination to the results
+      整轮回退 · 01a18bc0
+
+   3  Build a command-line search tool
+      整轮回退 · 01a18bb6
+
+  第 1 页  ·  序号 选择   /   q 退出
+
+  › 2
+```
+
+Choosing **2** removes the pagination turn and the later CSV-export turn from the original conversation. The earlier search-tool turn remains, and the backup retains the full history. Files remain unchanged.
+
 ## Requirements
 
 - Python 3.9+. The installer creates an isolated virtual environment and installs `websockets==15.0.1`.
