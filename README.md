@@ -1,27 +1,16 @@
 # Codex Rewind
 
-English | [简体中文](README.zh-CN.md)
+简体中文 | [English](README.en.md)
 
-Add `codex rewind` to Codex CLI. Pick a conversation and a user message in your terminal, create a backup, and rewind the original conversation in place.
+为 Codex CLI 添加 `codex rewind`：通过终端列表选择会话和消息，在保留备份的前提下，原地回退对话历史。
 
-Built on Codex App Server's `thread/revert` API, without manually editing conversation storage. An independent project, not an official OpenAI tool.
+基于 Codex App Server 的 `thread/revert`，不手动修改会话存储文件。个人独立工具，非 OpenAI 官方项目。
 
-## How it works
+## 使用体验
 
-1. **Choose a conversation.** Browse titles, update times, and working directories.
-2. **Choose a message.** Preview user messages and select a turn boundary.
-3. **Rewind immediately.** Selecting a message starts the operation without another confirmation prompt. Any running target turn in the connected server is interrupted first.
-4. **Keep a backup.** The tool forks the full conversation before reverting the original thread.
+以下为终端示意，标题、消息、路径和 ID 均为示例。
 
-**Rewind removes the selected message's entire turn and every later turn. The original thread ID stays the same. Code and local files are not reverted.**
-
-The terminal interface currently uses Chinese labels, with numbered choices, compact previews, and pagination.
-
-## Terminal walkthrough
-
-The examples below show the current Chinese terminal labels. Session titles, messages, paths, and IDs are illustrative.
-
-**1. Choose a conversation** — recent conversations appear first, with their working directories and update times.
+**第一步：选择会话**。按最近更新时间排序，显示标题、工作目录和时间。
 
 ```text
   ↶  CODEX REWIND   /   01 / 03
@@ -30,10 +19,10 @@ The examples below show the current Chinese terminal labels. Session titles, mes
 
   最近更新优先
 
-   1  Build a command-line tool
+   1  实现一个命令行工具
       10-30 15:40 ~/projects/example · 01a18bb6
 
-   2  Improve the dashboard layout
+   2  优化仪表盘布局
       10-29 18:30 ~/projects/dashboard · 01a1870a
 
   第 1 页  ·  序号 选择   /   n 下一页   /   q 退出
@@ -41,7 +30,7 @@ The examples below show the current Chinese terminal labels. Session titles, mes
   › 1
 ```
 
-**2. Choose a message** — the newest messages appear first. Entering a number immediately backs up the conversation and rewinds to **before that message's turn**.
+**第二步：选择消息**。最新消息在前，输入序号后立即备份并回退到**该消息所在轮之前**。
 
 ```text
   ↶  CODEX REWIND   /   02 / 03
@@ -52,13 +41,13 @@ The examples below show the current Chinese terminal labels. Session titles, mes
 
   运行中的目标轮次会自动停止。代码和文件不会回退。
 
-   1  Add CSV export
+   1  增加 CSV 导出功能
       整轮回退 · 01a18bc2
 
-   2  Add pagination to the results
+   2  给搜索结果增加分页
       整轮回退 · 01a18bc0
 
-   3  Build a command-line search tool
+   3  实现一个命令行搜索工具
       整轮回退 · 01a18bb6
 
   第 1 页  ·  序号 选择   /   q 退出
@@ -66,17 +55,24 @@ The examples below show the current Chinese terminal labels. Session titles, mes
   › 2
 ```
 
-Choosing **2** removes the pagination turn and the later CSV-export turn from the original conversation. The earlier search-tool turn remains, and the backup retains the full history. Files remain unchanged.
+选择 **2** 后，原会话中的“增加分页”整轮和后续的“CSV 导出”整轮都会被移除；更早的“命令行搜索工具”轮次保留。备份保存完整历史，文件保持原样。
 
-## Requirements
+1. 选择会话：显示标题、更新时间和工作目录。
+2. 选择回退位置：预览用户消息，按整轮选择。
+3. 执行：选中消息即自动备份并回退，不再要求输入确认。共享服务中的运行轮次会自动中断。
+4. 工具创建完整会话的 fork 备份，然后回退原会话，共享服务模式下在原客户端继续会话。
 
-- Python 3.9+. The installer creates an isolated virtual environment and installs `websockets==15.0.1`.
-- An installed and configured Codex CLI.
-- Support for the experimental `thread/revert` API and a conversation with `paginated` history. Legacy conversations are rejected.
-- Locally verified with Codex CLI 0.166.0. Experimental APIs may change; the tool checks the locally generated parameter schema before proceeding.
-- The global installer targets the macOS/Linux standalone layout at `~/.codex/packages/standalone/current/bin/codex`.
+**回退至所选消息之前：所选消息所在整轮及后续历史都会被删除。原会话 ID 不变。代码和本地文件不会回滚。**
 
-## Installation
+## 环境要求
+
+- Python 3.9+，安装器自动创建独立虚拟环境并安装 `websockets==15.0.1`。
+- 已安装并配置 Codex CLI。
+- CLI 必须支持实验性 `thread/revert` 接口，且目标会话使用 `paginated` 历史格式。
+- 本地验证版本：Codex CLI 0.166.0。实验性接口可能变化，工具会先检查参数 schema；旧式 legacy 会话会被拒绝。
+- 全局安装脚本目前适配 macOS/Linux 的 standalone 布局：`~/.codex/packages/standalone/current/bin/codex`。
+
+## 安装
 
 ```bash
 git clone https://github.com/yuxizhe/codex-rewind.git
@@ -85,97 +81,106 @@ python3 install-codex-rewind.py
 codex rewind
 ```
 
-Ensure `~/.local/bin` is on your `PATH`. The installer copies the tool into `~/.local/lib/codex-rewind` and installs a dispatcher at `~/.local/bin/codex`. Other Codex commands are passed through to the original CLI. Unrecognized existing launchers are not overwritten.
+确保 `~/.local/bin` 在 `PATH` 中。安装器将源码复制到 `~/.local/lib/codex-rewind`，在 `~/.local/bin/codex` 安装分发脚本；其他 `codex` 命令透传原 CLI。安装器遇到不认识的现有 launcher 会拒绝覆盖。
 
-The installed command does not depend on the source directory. Rerun the installer after updating the source, or if a Codex installer replaces the dispatcher.
+安装后不依赖源码目录的位置。更新源码或 Codex 安装器覆盖 launcher 后，重新运行安装脚本即可。
 
-For other installation layouts, install the dependency and invoke the script directly:
+其他安装布局可先安装依赖，再直接运行：
 
 ```bash
 python3 -m pip install websockets==15.0.1
 python3 codex-rewind.py --codex /absolute/path/to/codex
 ```
 
-## Usage
+## 用法
 
 ```bash
-# Choose a conversation and a message interactively
+# 交互选择会话与消息
 codex rewind
 
-# Open the message selector for a specific conversation
+# 直接进入某个会话的消息列表
 codex rewind THREAD_ID
 
-# Check the API and conversation format without reverting
+# 仅检查接口与目标会话格式，不执行回退
 codex rewind THREAD_ID BEFORE_TURN_ID
 
-# Rewind an explicit turn and continue (close other clients first)
+# 指定位置回退，并继续原会话（先关闭该会话所有客户端）
 codex rewind THREAD_ID BEFORE_TURN_ID --apply --stopped --continue
 ```
 
-Enter a number to select, `n` / `p` to change pages, or `q` to quit. Selecting a message applies the rewind immediately; exit with `q` or Ctrl+C before selecting to cancel. Use `--no-continue` to disable automatic continuation after interactive rewind. Set `NO_COLOR=1` to disable colors.
+列表输入序号选择，`n` / `p` 翻页，`q` 退出。选中消息即执行；选择前可用 `q` 或 Ctrl+C 退出。`--no-continue` 可禁用交互回退后的自动继续。设置 `NO_COLOR=1` 可禁用颜色。
 
-## Existing App Server support
+## 备份与恢复
 
-When the local `app-server-control/app-server-control.sock` exists under `CODEX_HOME` (default: `~/.codex`), the tool connects to the existing App Server over a Unix WebSocket. Otherwise, it starts a separate App Server.
-
-If the selected thread has a running turn, the tool calls `turn/interrupt` and waits for it to stop before loading, backing up, and reverting the thread. It does not terminate shared processes or delete locks.
-
-After a shared-server rewind, continue in the original client. The tool does not launch another CLI that could compete for the same writer lock. In standalone mode, it can launch `codex resume` automatically.
-
-## Backups and recovery
-
-The operation follows this sequence:
+执行顺序：
 
 ```text
-Load original thread → Fork full-history backup → Save recovery record
-                                                    │
-                                                    └→ Revert original thread
-                                                        (same thread ID)
+原会话 ── thread/resume ── thread/fork ──→ 完整历史备份（新 ID）
+   │
+   └── thread/revert ──→ 回退后的原会话（原 ID）
+                              │
+                              └── 原客户端继续 / 独立模式 codex resume
 ```
 
-Recovery records are saved before the revert request:
+备份成功后，工具会先保存恢复记录，再调用回退接口。记录位于：
 
 ```text
 $CODEX_HOME/rewind-backups/rewind-*.json
-# Defaults to ~/.codex/rewind-backups
+# CODEX_HOME 未设置时使用 ~/.codex
 ```
 
-The terminal prints the backup ID and a recovery command:
+终端会显示备份 ID 和恢复命令：
 
 ```bash
 codex resume BACKUP_THREAD_ID
 ```
 
-This opens the backup conversation; it does not overwrite the original thread. Backups are forks in the same Codex storage, not offline disaster-recovery copies. Backups and recovery records are not automatically deleted.
+这会打开备份对话，不是将备份覆盖回原 ID。备份是同一 Codex 存储中的 fork，不是离线灾备；备份和恢复记录不会自动清理。
 
-## Limitations and troubleshooting
+## 限制
 
-- **No code rollback.** File changes, commands, external API calls, and other tool side effects are not undone.
-- Rewind operates on whole turns, not individual assistant messages or tool calls within a turn.
-- A thread owned by another standalone process may still report `already has an active writer`. Exit that client and retry. Loading happens before backup creation, so writer conflicts do not create extra backups. The explicit-ID workflow requires `--stopped` as the user's assertion that other clients have been closed.
-- After a timeout or interruption, the revert may already have succeeded. Inspect the thread and backup before retrying.
-- Tests cover schema checks, selection, pagination, cancellation, writer conflicts, and interrupt dispatch. Revert has also been verified on extra fork copies through both standalone and shared servers; those test copies were archived.
+- **不回退代码**，也不会撤销命令、外部 API 或其他工具操作产生的副作用。
+- 回退粒度是整轮，不支持在同一轮内部截断助手消息或工具调用。
+- 共享服务模式会中断目标运行轮次；其他独立进程持有的会话仍需退出对应客户端。显式 ID 模式的 `--stopped` 是使用者的确认。
+- 发生超时或中断时，回退可能已经生效。先检查会话和备份，不要直接重复执行。
+- 目前测试覆盖协议参数检查、选择列表、分页与取消，并实测了真实会话的列表读取。已在额外 fork 副本上验证 resume → revert 和目标轮移除；测试副本已归档。
 
-## Development
+## 开发与测试
 
 ```bash
 python3 -m unittest discover -s . -p 'test_*.py'
 ```
 
-| File | Purpose |
+| 文件 | 用途 |
 | --- | --- |
-| `codex-rewind.py` | App Server client, terminal interface, backup and rewind workflow |
-| `install-codex-rewind.py` | Global `codex rewind` installer |
-| `test_codex_rewind.py` | Unit tests |
+| `codex-rewind.py` | App Server 客户端、终端界面、备份与回退流程 |
+| `install-codex-rewind.py` | 安装全局 `codex rewind` 分发脚本 |
+| `test_codex_rewind.py` | 单元测试 |
 
-Protocol reference: [Codex App Server](https://developers.openai.com/codex/app-server). Compatibility is checked against the schema generated by the installed CLI.
+协议参考：[Codex App Server](https://developers.openai.com/codex/app-server)。兼容性以本机 CLI 生成的 schema 为准。
 
-## Uninstalling the global command
+## 卸载全局命令
 
-First verify that `~/.local/bin/codex` is still this tool's dispatcher. Then replace it with a symlink to the original launcher, whose path is recorded during installation:
+确认 `~/.local/bin/codex` 仍是本工具安装的分发脚本后，将其替换为原 launcher 的软链接。原目标记录在 `~/.local/lib/codex-rewind/original-target.txt`：
 
 ```bash
 ln -sfn "$(cat ~/.local/lib/codex-rewind/original-target.txt)" ~/.local/bin/codex
 ```
 
-This leaves your source files and conversation backups intact.
+这不会删除会话备份或源码。
+
+### 会话被占用
+
+出现 `already has an active writer` 表示另一个 Codex 客户端仍持有该会话的写入权。
+请退出对应 CLI 或在桌面客户端关闭该会话，再运行 rewind。工具先加载原会话取得写入权，
+成功后才创建备份；占用冲突不会再产生额外备份。工具不会强杀进程或删除存储锁。
+
+
+## 共享服务模式
+
+存在本机 `app-server-control/app-server-control.sock` 时，直接通过 Unix WebSocket
+连接现有 App Server；不存在时才启动独立服务。选定消息后，若目标轮次正在运行，
+调用 `turn/interrupt` 并等待停止，再加载、备份和回退。不终止共享进程，不删除锁。
+共享模式完成后请在原客户端继续；不会再启动 CLI 争抢写入权。
+其他独立进程持有的会话仍可能报占用，需要退出对应客户端。
+共享服务回退已在额外 fork 副本上验证，测试副本已归档。
