@@ -116,7 +116,9 @@ def choose(server, method, params, title, label):
         rows = page['data']
         width = max(20, min(shutil.get_terminal_size((88, 24)).columns, 96) - 8)
         heading('01 / 03' if is_thread else '02 / 03', title)
-        print('  ' + style('最近更新优先' if is_thread else '最新消息在前 · 回退至所选消息之前') + '\n')
+        print('  ' + style('最近更新优先' if is_thread else '选中即执行 · 自动备份 · 删除所选整轮及后续历史') + '\n')
+        if not is_thread:
+            print('  请先关闭目标会话的其他客户端。代码和文件不会回退。\n')
         for index, row in enumerate(rows, 1):
             text = label(row)
             if not is_thread:
@@ -156,6 +158,14 @@ def choose(server, method, params, title, label):
             print('  ' + style('请输入有效序号或下方导航键。', '33'))
 
 
+def revert_loaded(server, thread_id, before_turn_id):
+    # read/list query stored history; revert requires this server to own a loaded thread.
+    loaded = server.call('thread/resume', dict(threadId=thread_id, excludeTurns=True))['thread']
+    if loaded['id'] != thread_id or loaded.get('status', {}).get('type') == 'active':
+        raise RuntimeError('Target thread is unexpected or active; backup retained')
+    return server.call('thread/revert', dict(threadId=thread_id, beforeTurnId=before_turn_id))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('thread_id', nargs='?')
@@ -164,6 +174,7 @@ def main():
     parser.add_argument('--apply', action='store_true', help='Apply rewind; default only checks compatibility')
     parser.add_argument('--stopped', action='store_true', help='Confirm all clients using this thread are closed')
     parser.add_argument('--continue', dest='resume', action='store_true')
+    parser.add_argument('--no-continue', action='store_true', help='Do not open CLI after interactive rewind')
     args = parser.parse_args()
     interactive = args.before_turn_id is None
     if interactive and not sys.stdin.isatty():
@@ -195,15 +206,13 @@ def main():
                               dict(threadId=args.thread_id, sortDirection='desc', itemsView='summary'),
                               '选择回退位置', turn_label)
             args.before_turn_id = selected['id']
-            heading('03 / 03', '确认回退')
+            heading('03 / 03', '正在回退')
             print('  会话  ' + style(thread_label(thread), '1'))
             print('  消息  ' + turn_label(selected))
             print('\n  ' + style('所选整轮及后续历史将被移除。', '33'))
             print('  自动创建会话备份 · 代码和文件保持原样\n')
-            if input('  关闭该会话所有客户端后，输入 REWIND 确认（回车取消）\n  › ').strip() != 'REWIND':
-                return
             args.apply = True
-            args.resume = input('\n  完成后继续原会话？[Y/n] › ').strip().lower() != 'n'
+            args.resume = not args.no_continue
         if not args.apply:
             print('Protocol and history compatible. Close all clients, then use --apply --stopped [--continue].')
             return
@@ -217,7 +226,7 @@ def main():
             output.flush()
             os.fsync(output.fileno())
         print(f'Backup: {backup}\nRecovery: codex resume {backup}\nManifest: {manifest}', flush=True)
-        result = server.call('thread/revert', dict(threadId=args.thread_id, beforeTurnId=args.before_turn_id))
+        result = revert_loaded(server, args.thread_id, args.before_turn_id)
         if result['thread']['id'] != args.thread_id:
             raise RuntimeError('Unexpected reverted thread ID')
         print(f'Rewound: {args.thread_id}', flush=True)
@@ -233,3 +242,7 @@ if __name__ == '__main__':
     except (KeyboardInterrupt, EOFError):
         print('\n已取消。', file=sys.stderr)
         raise SystemExit(130)
+    except (RuntimeError, subprocess.CalledProcessError, OSError) as error:
+        print('\n  回退未完成：' + str(error), file=sys.stderr)
+        print('  若已显示备份 ID，可使用 codex resume <备份ID> 打开备份。', file=sys.stderr)
+        raise SystemExit(1)

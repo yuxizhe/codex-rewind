@@ -34,3 +34,21 @@ class SelectionTests(unittest.TestCase):
 
     def test_user_message_preview(self):
         self.assertEqual(rewind.turn_label(dict(id='t1', items=[dict(type='userMessage', content=[dict(type='text', text='hello\nworld')])])), 'hello world  [t1]')
+
+class RevertTests(unittest.TestCase):
+    def test_resume_before_revert(self):
+        from unittest.mock import Mock, call
+        server = Mock()
+        server.call.side_effect = [dict(thread=dict(id='target', status=dict(type='idle'))), dict(thread=dict(id='target'))]
+        rewind.revert_loaded(server, 'target', 'turn')
+        self.assertEqual(server.call.call_args_list, [
+            call('thread/resume', dict(threadId='target', excludeTurns=True)),
+            call('thread/revert', dict(threadId='target', beforeTurnId='turn'))])
+
+    def test_active_target_is_not_reverted(self):
+        from unittest.mock import Mock
+        server = Mock()
+        server.call.return_value = dict(thread=dict(id='target', status=dict(type='active')))
+        with self.assertRaises(RuntimeError):
+            rewind.revert_loaded(server, 'target', 'turn')
+        self.assertEqual(server.call.call_count, 1)
